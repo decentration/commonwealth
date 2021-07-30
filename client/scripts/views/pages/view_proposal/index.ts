@@ -4,7 +4,7 @@ import 'pages/view_proposal/tips.scss';
 import $ from 'jquery';
 import m from 'mithril';
 import mixpanel from 'mixpanel-browser';
-import { PopoverMenu, MenuDivider, Icon, Icons, Button, Input } from 'construct-ui';
+import { PopoverMenu, MenuDivider, MenuItem, Icon, Icons, Button, Input  } from 'construct-ui';
 
 import app from 'state';
 import Sublayout from 'views/sublayout';
@@ -35,7 +35,7 @@ import PollEditor from 'views/components/poll_editor';
 import {
   TopicEditorMenuItem, ThreadSubscriptionMenuItem
 } from 'views/pages/discussions/discussion_row_menu';
-import ProposalVotingActions from 'views/components/proposals/voting_actions';
+import ProposalVotingActions, { CancelButton, ExecuteButton, QueueButton } from 'views/components/proposals/voting_actions';
 import ProposalVotingResults from 'views/components/proposals/voting_results';
 import PageLoading from 'views/pages/loading';
 import PageNotFound from 'views/pages/404';
@@ -47,6 +47,7 @@ import { SubstrateTreasuryTip } from 'controllers/chain/substrate/treasury_tip';
 
 import { SocialSharingCarat } from 'views/components/social_sharing_carat';
 
+import AaveProposal from 'controllers/chain/ethereum/aave/proposal';
 import {
   ProposalHeaderExternalLink, ProposalHeaderBlockExplorerLink, ProposalHeaderVotingInterfaceLink,
   ProposalHeaderOffchainPoll,
@@ -59,6 +60,7 @@ import {
   ProposalSidebarStageEditorModule,
   ProposalSidebarPollEditorModule,
 } from './header';
+import { AaveViewProposalDetail, AaveViewProposalSummary } from './aave_view_proposal_detail';
 import {
   activeQuillEditorHasText, GlobalStatus, ProposalBodyAvatar, ProposalBodyAuthor, ProposalBodyCreated,
   ProposalBodyLastEdited, ProposalBodyCancelEdit, ProposalBodySaveEdit,
@@ -72,7 +74,6 @@ import User from '../../components/widgets/user';
 import MarkdownFormattedText from '../../components/markdown_formatted_text';
 import { createTXModal } from '../../modals/tx_signing_modal';
 import { SubstrateAccount } from '../../../controllers/chain/substrate/account';
-
 
 const ProposalHeader: m.Component<{
   commentCount: number;
@@ -116,11 +117,24 @@ const ProposalHeader: m.Component<{
       || proposal instanceof SubstrateTreasuryTip
       || proposal instanceof SubstrateTreasuryProposal);
 
+    const hasBody = !!(proposal as AnyProposal).description;
+
     return m('.ProposalHeader', {
       class: `proposal-${proposal.slug}`
     }, [
       m('.proposal-top', [
         m('.proposal-top-left', [
+          !(proposal instanceof OffchainThread)
+            && m('.proposal-meta-top', [
+              m('.proposal-meta-top-left', [
+                m(ProposalHeaderOnchainId, { proposal }),
+              ]),
+              m('.proposal-meta-top-right', [
+                m(QueueButton, { proposal }),
+                m(ExecuteButton, { proposal }),
+                m(CancelButton, { proposal })
+              ])
+            ]),
           !vnode.state.editing
             && m('.proposal-title', [
               m(ProposalHeaderTitle, { proposal }),
@@ -163,6 +177,14 @@ const ProposalHeader: m.Component<{
                     && m(ProposalBodyDeleteMenuItem, { item: proposal }),
                   (isAuthor || isAdmin)
                     && m(ProposalHeaderPrivacyMenuItems, { proposal, getSetGlobalEditingStatus }),
+                  (isAuthor || isAdmin) && (app.chain?.meta.chain.snapshot !== null)
+                    && m(MenuItem, {
+                      onclick: (e) => {
+                        m.route.set(`/${app.activeChainId()}/new/snapshot-proposal/${app.chain.meta.chain.snapshot}`
+                        + `?fromProposalType=${proposal.slug}&fromProposalId=${proposal.id}`);
+                      },
+                      label: 'Snapshot proposal from thread',
+                    }),
                   (isAuthor || isAdmin)
                     && m(MenuDivider),
                   m(ThreadSubscriptionMenuItem, { proposal: proposal as OffchainThread }),
@@ -170,8 +192,8 @@ const ProposalHeader: m.Component<{
                 inline: true,
                 trigger: m(Icon, { name: Icons.CHEVRON_DOWN }),
               }),
-              m('.CommentSocialHeader', [ m(SocialSharingCarat)]),
               // This is the new social carat menu
+              m('.CommentSocialHeader', [ m(SocialSharingCarat)]),
               vnode.state.editPermissionsIsOpen
                 && proposal instanceof OffchainThread
                 && m(ProposalEditorPermissions, {
@@ -217,9 +239,8 @@ const ProposalHeader: m.Component<{
                 }),
             ]
             : [
-              m(ProposalHeaderOnchainId, { proposal }),
-              m(ProposalHeaderOnchainStatus, { proposal }),
               m(ProposalBodyAuthor, { item: proposal }),
+              m(ProposalHeaderOnchainStatus, { proposal }),
               app.isLoggedIn()
               && (isAdmin || isAuthor)
               && !getSetGlobalEditingStatus(GlobalStatus.Get)
@@ -281,6 +302,9 @@ const ProposalHeader: m.Component<{
           !vnode.state.editing
             && m(ProposalBodyReaction, { item: proposal }),
         ]),
+      ]),
+      !(proposal instanceof OffchainThread) && hasBody && m('.proposal-content', [
+        m(ProposalBodyText, { item: proposal }),
       ]),
     ]);
   }
@@ -735,18 +759,6 @@ const ViewProposalPage: m.Component<{
     const commentCount : number = app.comments.nComments(proposal);
     const voterCount : number = proposal instanceof OffchainThread ? 0 : proposal.getVotes().length;
 
-    const hasBody: boolean = proposal instanceof OffchainThread
-      ? (proposal as OffchainThread).body && (() => {
-        const body = (proposal as OffchainThread).body;
-        try {
-          const doc = JSON.parse(body);
-          return !(doc.ops.length === 1 && doc.ops[0].insert.trim() === '');
-        } catch (e) {
-          return (`${body}`).trim() !== '';
-        }
-      })()
-      : !!(proposal as AnyProposal).description;
-
     const getSetGlobalEditingStatus = (call: string, status?: boolean) => {
       if (call === GlobalStatus.Get) return vnode.state.editing;
       if (call === GlobalStatus.Set && status !== undefined) {
@@ -951,6 +963,11 @@ const ViewProposalPage: m.Component<{
       }),
       !(proposal instanceof OffchainThread)
         && m(LinkedProposalsEmbed, { proposal }),
+      (proposal instanceof AaveProposal)
+        && [
+          m(AaveViewProposalSummary, { proposal }),
+          m(AaveViewProposalDetail, { proposal }),
+        ],
       !(proposal instanceof OffchainThread)
         && m(ProposalVotingResults, { proposal }),
       !(proposal instanceof OffchainThread)

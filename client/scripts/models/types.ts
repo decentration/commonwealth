@@ -36,15 +36,21 @@ export enum ChainNetwork {
   Moloch = 'moloch',
   Marlin = 'marlin',
   MarlinTestnet = 'marlin-testnet',
+  Aave = 'aave',
+  AaveLocal = 'aave-local',
   Metacartel = 'metacartel',
   ALEX = 'alex',
   Commonwealth = 'commonwealth',
   ERC20 = 'erc20',
   Clover = 'clover',
   HydraDX = 'hydradx',
+  Yearn = 'yearn',
+  Fei = 'fei',
+  Sushi = 'sushi',
   Crust = 'crust',
   CosmosHub = 'cosmos-hub',
   Gaia13k = 'gaia-13k',
+  Demo = 'demo',
 }
 
 // This function returns a default chain for a chainbase
@@ -66,6 +72,7 @@ export enum OffchainThreadKind {
   Request = 'request',
 }
 
+// TODO: this list should be shared with the server
 export enum OffchainThreadStage {
   Discussion = 'discussion',
   ProposalInReview = 'proposal_in_review',
@@ -114,6 +121,7 @@ export enum VotingUnit {
   OnePersonOneVote = '1p1v',
   CoinVote = 'coin',
   ConvictionCoinVote = 'conviction_coin',
+  PowerVote = 'power',
   None = 'none',
 }
 

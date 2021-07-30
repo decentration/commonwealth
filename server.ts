@@ -41,7 +41,7 @@ import setupAPI from './server/router';
 import setupPassport from './server/passport';
 import setupChainEventListeners from './server/scripts/setupChainEventListeners';
 import { fetchStats } from './server/routes/getEdgewareLockdropStats';
-import migrateChainEntities from './server/scripts/migrateChainEntities';
+import { migrateChainEntities, migrateChainEntity } from './server/scripts/migrateChainEntities';
 import migrateIdentities from './server/scripts/migrateIdentities';
 import migrateCouncillorValidatorFlags from './server/scripts/migrateCouncillorValidatorFlags';
 
@@ -143,7 +143,9 @@ async function main() {
     // the specific chain to migrate
     log.info('Started migrating chain entities into the DB');
     try {
-      await migrateChainEntities(models, ENTITY_MIGRATION === 'all' ? undefined : ENTITY_MIGRATION);
+      await (ENTITY_MIGRATION === 'all'
+        ? migrateChainEntities(models)
+        : migrateChainEntity(models, ENTITY_MIGRATION));
       log.info('Finished migrating chain entities into the DB');
       rc = 0;
     } catch (e) {
@@ -282,7 +284,6 @@ async function main() {
   })();
 
   const sendFile = (res) => res.sendFile(`${__dirname}/build/index.html`);
-
 
   // Only run prerender in DEV environment if the WITH_PRERENDER flag is provided.
   // On the other hand, run prerender by default on production.
