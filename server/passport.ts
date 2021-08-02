@@ -8,6 +8,7 @@ import { Strategy as MagicStrategy } from 'passport-magic';
 
 import { authenticateMagicLink } from './util/magicLink';
 import { factory, formatFilename } from '../shared/logging';
+import { getStatsDInstance } from './util/metrics';
 const log = factory.getLogger(formatFilename(__filename));
 
 import {
@@ -168,8 +169,9 @@ function setupPassport(models, magic?: Magic) {
       return cb(null, newUser);
     }
   }));
-
   passport.serializeUser<any>((user, done) => {
+    getStatsDInstance().increment('cw.users.logged_in');
+    getStatsDInstance().set('cw.users.unique', user.id);
     done(null, user.id);
   });
 
